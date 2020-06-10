@@ -1,6 +1,7 @@
 import React from "react";
 import UsageBar from "../../../../common/UsageBar";
 import { getWeightedAverage, sum } from "../../../../common/util";
+import { GPUStats } from "../../../../api";
 import {
   ClusterFeatureComponent,
   Node,
@@ -10,7 +11,7 @@ import {
 
 const clusterUtilization = (nodes: Array<Node>): number => {
   const utils = nodes
-    .map((node) => ({ weight: node.gpus.length, value: nodeUtilization(node) }))
+    .map((node) => ({ weight: node.gpus.length, value: nodeAvgUtilization(node) }))
     .filter((util) => !isNaN(util.value));
   if (utils.length === 0) {
     return NaN;
@@ -18,7 +19,7 @@ const clusterUtilization = (nodes: Array<Node>): number => {
   return getWeightedAverage(utils);
 };
 
-const nodeUtilization = (node: Node): number => {
+const nodeAvgUtilization = (node: Node): number => {
   if (!node.gpus || node.gpus.length === 0) {
     return NaN;
   }
@@ -26,6 +27,23 @@ const nodeUtilization = (node: Node): number => {
   const avgUtilization = utilizationSum / node.gpus.length;
   return avgUtilization;
 };
+
+type NodeGPUUtilizationEntryProps = {
+  gpu: GPUStats;
+}
+
+const NodeGPUUtilizationEntry = ({gpu}: NodeGPUUtilizationEntryProps) => {
+const utilPercent = gpu.utilization_gpu * 100;
+const gpuRenderName = gpu.name;
+  return (
+    <div>
+      <b>{gpuRenderName}: </b>
+      <UsageBar
+        percent={utilPercent}
+        text={`${utilPercent.toFixed(1)}`}
+      />
+    </div>);
+}
 
 export const ClusterGPU: ClusterFeatureComponent = ({ nodes }) => {
   const clusterAverageUtilization = clusterUtilization(nodes);
@@ -44,14 +62,16 @@ export const ClusterGPU: ClusterFeatureComponent = ({ nodes }) => {
 };
 
 export const NodeGPU: NodeFeatureComponent = ({ node }) => {
-  const nodeUtil = nodeUtilization(node);
-  return (
-    <div style={{ minWidth: 60 }}>
-      {isNaN(nodeUtil) ? (
+  if (!node.gpus || node.gpus.length === 0) {
+    return (
+      <div style={{ minWidth: 60 }}>
         <b>No GPUs</b>
-      ) : (
-        <UsageBar percent={nodeUtil} text={`${nodeUtil.toFixed(1)}%`} />
-      )}
+      </div>
+    );
+  }
+  return (
+    <div>
+      {node.gpus.map(gpu => <NodeGPUUtilizationEntry gpu={gpu} />)}
     </div>
   );
 };
