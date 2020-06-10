@@ -10,7 +10,7 @@ import {
   WorkerFeatureComponent,
 } from "./types";
 
-const nodeGRAMUtilization = (node: Node) => {
+const nodeGRAMAvgUtilization = (node: Node) => {
   const utilization = (gpu: GPUStats) => gpu.memory_used / gpu.memory_total;
   if (node.gpus.length === 0) {
     return NaN;
@@ -25,7 +25,7 @@ const clusterGRAMUtilization = (nodes: Array<Node>) => {
   const utils = nodes
     .map((node) => ({
       weight: node.gpus.length,
-      value: nodeGRAMUtilization(node),
+      value: nodeGRAMAvgUtilization(node),
     }))
     .filter((util) => !isNaN(util.value));
   if (utils.length === 0) {
@@ -33,6 +33,27 @@ const clusterGRAMUtilization = (nodes: Array<Node>) => {
   }
   return getWeightedAverage(utils);
 };
+
+type NodeGRAMUtilizationEntryProps = {
+  gpu: GPUStats;
+}
+
+const NodeGRAMUtilizationEntry = ({gpu}: NodeGRAMUtilizationEntryProps) => {
+  const gpuRenderName = gpu.name;
+  const utilPercent = gpu.memory_used / gpu.memory_total;
+  const memUsedRepr = `${gpu.memory_used.toFixed(1)} MB`;
+  const memTotalRepr = `${gpu.memory_total.toFixed(1)} MB`;
+  const utilPercentRepr = `(${utilPercent.toFixed(1)}%)`
+  const gpuUsageText = `${memUsedRepr} / ${memTotalRepr} ${utilPercentRepr}`
+  return (
+  <div>
+    <b>{gpuRenderName}: </b>
+    <UsageBar
+      percent={utilPercent}
+      text={gpuUsageText}
+    />
+  </div>);
+}
 
 export const ClusterGRAM: ClusterFeatureComponent = ({ nodes }) => {
   const clusterAverageUtilization = clusterGRAMUtilization(nodes);
@@ -51,14 +72,16 @@ export const ClusterGRAM: ClusterFeatureComponent = ({ nodes }) => {
 };
 
 export const NodeGRAM: NodeFeatureComponent = ({ node }) => {
-  const gramUtil = nodeGRAMUtilization(node);
+  if (!node.gpus || node.gpus.length === 0) {
+    return (
+      <div style={{ minWidth: 60 }}>
+        <b>No GPUs</b>
+      </div>
+    );
+  }
   return (
     <div style={{ minWidth: 60 }}>
-      {isNaN(gramUtil) ? (
-        <b>No GPUs</b>
-      ) : (
-        <UsageBar percent={gramUtil} text={`${gramUtil.toFixed(1)}%`} />
-      )}
+        {node.gpus.map(gpu => <NodeGRAMUtilizationEntry gpu={gpu} />)}
     </div>
   );
 };
