@@ -137,6 +137,7 @@ NodeManager::NodeManager(boost::asio::io_service &io_service,
       object_pinning_enabled_(config.object_pinning_enabled),
       temp_dir_(config.temp_dir),
       object_manager_profile_timer_(io_service),
+      light_heartbeat_enabled_(RayConfig::instance().light_heartbeat_enabled()),
       initial_config_(config),
       local_available_resources_(config.resource_config),
       worker_pool_(
@@ -185,7 +186,7 @@ NodeManager::NodeManager(boost::asio::io_service &io_service,
             local_resources.GetTotalResources().GetResourceMap()));
   }
 
-  RAY_ARROW_CHECK_OK(store_client_.Connect(config.store_socket_name.c_str()));
+  RAY_CHECK_OK(store_client_.Connect(config.store_socket_name.c_str()));
   // Run the node manger rpc server.
   node_manager_server_.RegisterService(node_manager_service_);
   node_manager_server_.Run();
@@ -253,7 +254,7 @@ ray::Status NodeManager::RegisterGcs() {
   // node failure. These workers can be identified by comparing the raylet_id
   // in their rpc::Address to the ID of a failed raylet.
   const auto &worker_failure_handler =
-      [this](const WorkerID &id, const gcs::WorkerFailureData &worker_failure_data) {
+      [this](const WorkerID &id, const gcs::WorkerTableData &worker_failure_data) {
         HandleUnexpectedWorkerFailure(worker_failure_data.worker_address());
       };
   RAY_CHECK_OK(gcs_client_->Workers().AsyncSubscribeToWorkerFailures(
@@ -341,22 +342,70 @@ void NodeManager::Heartbeat() {
   auto heartbeat_data = std::make_shared<HeartbeatTableData>();
   SchedulingResources &local_resources = cluster_resource_map_[self_node_id_];
   heartbeat_data->set_client_id(self_node_id_.Binary());
+
   // TODO(atumanov): modify the heartbeat table protocol to use the ResourceSet directly.
   // TODO(atumanov): implement a ResourceSet const_iterator.
-  for (const auto &resource_pair :
-       local_resources.GetAvailableResources().GetResourceMap()) {
-    heartbeat_data->add_resources_available_label(resource_pair.first);
-    heartbeat_data->add_resources_available_capacity(resource_pair.second);
-  }
-  for (const auto &resource_pair : local_resources.GetTotalResources().GetResourceMap()) {
-    heartbeat_data->add_resources_total_label(resource_pair.first);
-    heartbeat_data->add_resources_total_capacity(resource_pair.second);
-  }
+  // If light heartbeat enabled, we only set filed that represent resources changed.
+  if (light_heartbeat_enabled_) {
+    if (!last_heartbeat_resources_.GetAvailableResources().IsEqual(
+            local_resources.GetAvailableResources())) {
+      for (const auto &resource_pair :
+           local_resources.GetAvailableResources().GetResourceMap()) {
+        (*heartbeat_data->mutable_resources_available())[resource_pair.first] =
+            resource_pair.second;
+      }
+      last_heartbeat_resources_.SetAvailableResources(
+          ResourceSet(local_resources.GetAvailableResources()));
+    }
 
-  local_resources.SetLoadResources(local_queues_.GetResourceLoad());
-  for (const auto &resource_pair : local_resources.GetLoadResources().GetResourceMap()) {
-    heartbeat_data->add_resource_load_label(resource_pair.first);
-    heartbeat_data->add_resource_load_capacity(resource_pair.second);
+    if (!last_heartbeat_resources_.GetTotalResources().IsEqual(
+            local_resources.GetTotalResources())) {
+      for (const auto &resource_pair :
+           local_resources.GetTotalResources().GetResourceMap()) {
+        (*heartbeat_data->mutable_resources_total())[resource_pair.first] =
+            resource_pair.second;
+      }
+      last_heartbeat_resources_.SetTotalResources(
+          ResourceSet(local_resources.GetTotalResources()));
+    }
+
+    local_resources.SetLoadResources(local_queues_.GetResourceLoad());
+    if (!last_heartbeat_resources_.GetLoadResources().IsEqual(
+            local_resources.GetLoadResources())) {
+      for (const auto &resource_pair :
+           local_resources.GetLoadResources().GetResourceMap()) {
+        (*heartbeat_data->mutable_resource_load())[resource_pair.first] =
+            resource_pair.second;
+      }
+      last_heartbeat_resources_.SetLoadResources(
+          ResourceSet(local_resources.GetLoadResources()));
+    }
+  } else {
+    // If light heartbeat disabled, we send whole resources information every time.
+    for (const auto &resource_pair :
+         local_resources.GetAvailableResources().GetResourceMap()) {
+      (*heartbeat_data->mutable_resources_available())[resource_pair.first] =
+          resource_pair.second;
+    }
+    last_heartbeat_resources_.SetAvailableResources(
+        ResourceSet(local_resources.GetAvailableResources()));
+
+    for (const auto &resource_pair :
+         local_resources.GetTotalResources().GetResourceMap()) {
+      (*heartbeat_data->mutable_resources_total())[resource_pair.first] =
+          resource_pair.second;
+    }
+    last_heartbeat_resources_.SetTotalResources(
+        ResourceSet(local_resources.GetTotalResources()));
+
+    local_resources.SetLoadResources(local_queues_.GetResourceLoad());
+    for (const auto &resource_pair :
+         local_resources.GetLoadResources().GetResourceMap()) {
+      (*heartbeat_data->mutable_resource_load())[resource_pair.first] =
+          resource_pair.second;
+    }
+    last_heartbeat_resources_.SetLoadResources(
+        ResourceSet(local_resources.GetLoadResources()));
   }
 
   // Set the global gc bit on the outgoing heartbeat message.
@@ -748,22 +797,37 @@ void NodeManager::HeartbeatAdded(const ClientID &client_id,
 
   SchedulingResources &remote_resources = it->second;
 
-  ResourceSet remote_total(VectorFromProtobuf(heartbeat_data.resources_total_label()),
-                           VectorFromProtobuf(heartbeat_data.resources_total_capacity()));
-  ResourceSet remote_available(
-      VectorFromProtobuf(heartbeat_data.resources_available_label()),
-      VectorFromProtobuf(heartbeat_data.resources_available_capacity()));
-  ResourceSet remote_load(VectorFromProtobuf(heartbeat_data.resource_load_label()),
-                          VectorFromProtobuf(heartbeat_data.resource_load_capacity()));
-  // TODO(atumanov): assert that the load is a non-empty ResourceSet.
-  remote_resources.SetAvailableResources(std::move(remote_available));
-  // Extract the load information and save it locally.
-  remote_resources.SetLoadResources(std::move(remote_load));
+  // If light heartbeat enabled, we update remote resources only when related resources
+  // map in heartbeat is not empty.
+  if (light_heartbeat_enabled_) {
+    if (heartbeat_data.resources_total_size() > 0) {
+      ResourceSet remote_total(MapFromProtobuf(heartbeat_data.resources_total()));
+      remote_resources.SetTotalResources(std::move(remote_total));
+    }
+    if (heartbeat_data.resources_available_size() > 0) {
+      ResourceSet remote_available(MapFromProtobuf(heartbeat_data.resources_available()));
+      remote_resources.SetAvailableResources(std::move(remote_available));
+    }
+    if (heartbeat_data.resource_load_size() > 0) {
+      ResourceSet remote_load(MapFromProtobuf(heartbeat_data.resource_load()));
+      // Extract the load information and save it locally.
+      remote_resources.SetLoadResources(std::move(remote_load));
+    }
+  } else {
+    // If light heartbeat disabled, we update remote resources every time.
+    ResourceSet remote_total(MapFromProtobuf(heartbeat_data.resources_total()));
+    remote_resources.SetTotalResources(std::move(remote_total));
+    ResourceSet remote_available(MapFromProtobuf(heartbeat_data.resources_available()));
+    remote_resources.SetAvailableResources(std::move(remote_available));
+    ResourceSet remote_load(MapFromProtobuf(heartbeat_data.resource_load()));
+    // Extract the load information and save it locally.
+    remote_resources.SetLoadResources(std::move(remote_load));
+  }
 
   if (new_scheduler_enabled_ && client_id != self_node_id_) {
-    new_resource_scheduler_->AddOrUpdateNode(client_id.Binary(),
-                                             remote_total.GetResourceMap(),
-                                             remote_available.GetResourceMap());
+    new_resource_scheduler_->AddOrUpdateNode(
+        client_id.Binary(), remote_resources.GetTotalResources().GetResourceMap(),
+        remote_resources.GetAvailableResources().GetResourceMap());
     NewSchedulerSchedulePendingTasks();
     return;
   }
@@ -810,8 +874,7 @@ void NodeManager::HandleActorStateTransition(const ActorID &actor_id,
   if (it == actor_registry_.end()) {
     it = actor_registry_.emplace(actor_id, actor_registration).first;
   } else {
-    if (RayConfig::instance().gcs_service_enabled() &&
-        RayConfig::instance().gcs_actor_service_enabled()) {
+    if (RayConfig::instance().gcs_actor_service_enabled()) {
       it->second = actor_registration;
     } else {
       // Only process the state transition if it is to a later state than ours.
@@ -878,8 +941,7 @@ void NodeManager::HandleActorStateTransition(const ActorID &actor_id,
     }
   } else if (actor_registration.GetState() == ActorTableData::RESTARTING) {
     RAY_LOG(DEBUG) << "Actor is being restarted: " << actor_id;
-    if (!(RayConfig::instance().gcs_service_enabled() &&
-          RayConfig::instance().gcs_actor_service_enabled())) {
+    if (!RayConfig::instance().gcs_actor_service_enabled()) {
       // The actor is dead and needs reconstruction. Attempting to reconstruct its
       // creation task.
       reconstruction_policy_.ListenAndMaybeReconstruct(
@@ -942,7 +1004,7 @@ void NodeManager::DispatchTasks(
   // Approximate fair round robin between classes.
   for (const auto &it : fair_order) {
     const auto &task_resources =
-        TaskSpecification::GetSchedulingClassDescriptor(it->first).first;
+        TaskSpecification::GetSchedulingClassDescriptor(it->first);
     // FIFO order within each class.
     for (const auto &task_id : it->second) {
       const auto &task = local_queues_.GetTaskOfState(task_id, TaskState::READY);
@@ -1169,8 +1231,7 @@ void NodeManager::ProcessAnnounceWorkerPortMessage(
 
 void NodeManager::HandleDisconnectedActor(const ActorID &actor_id, bool was_local,
                                           bool intentional_disconnect) {
-  if (RayConfig::instance().gcs_service_enabled() &&
-      RayConfig::instance().gcs_actor_service_enabled()) {
+  if (RayConfig::instance().gcs_actor_service_enabled()) {
     // If gcs actor management is enabled, the gcs will take over the status change of all
     // actors.
     return;
@@ -1622,7 +1683,6 @@ void NodeManager::DispatchScheduledTasksToWorkers() {
     worker->SetOwnerAddress(spec.CallerAddress());
     if (spec.IsActorCreationTask()) {
       // The actor belongs to this worker now.
-      worker->AssignActorId(spec.ActorCreationId());
       worker->SetLifetimeAllocatedInstances(allocated_instances);
     } else {
       worker->SetAllocatedInstances(allocated_instances);
@@ -2106,8 +2166,8 @@ void NodeManager::MarkObjectsAsFailed(const ErrorType &error_type,
                                       const JobID &job_id) {
   const std::string meta = std::to_string(static_cast<int>(error_type));
   for (const auto &object_id : objects_to_fail) {
-    arrow::Status status = store_client_.CreateAndSeal(object_id, "", meta);
-    if (!status.ok() && !plasma::IsPlasmaObjectExists(status)) {
+    Status status = store_client_.CreateAndSeal(object_id, "", meta);
+    if (!status.ok() && !status.IsObjectExists()) {
       // If we failed to save the error code, log a warning and push an error message
       // to the driver.
       std::ostringstream stream;
@@ -2169,10 +2229,19 @@ void NodeManager::SubmitTask(const Task &task, const Lineage &uncommitted_lineag
   RAY_LOG(DEBUG) << "Submitting task: " << task.DebugString();
 
   if (local_queues_.HasTask(task_id)) {
-    RAY_LOG(WARNING) << "Submitted task " << task_id
-                     << " is already queued and will not be restarted. This is most "
-                        "likely due to spurious reconstruction.";
-    return;
+    if (spec.IsActorCreationTask()) {
+      RAY_LOG(WARNING) << "Submitted actor creation task " << task_id
+                       << " is already queued. This is most likely due to a GCS restart. "
+                          "We will remove "
+                          "the old one from the queue, and enqueue the new one.";
+      std::unordered_set<TaskID> task_ids{task_id};
+      local_queues_.RemoveTasks(task_ids);
+    } else {
+      RAY_LOG(WARNING) << "Submitted task " << task_id
+                       << " is already queued and will not be restarted. This is most "
+                          "likely due to spurious reconstruction.";
+      return;
+    }
   }
 
   if (spec.IsActorTask()) {
@@ -2716,8 +2785,7 @@ void NodeManager::FinishAssignedActorTask(Worker &worker, const Task &task) {
       worker.MarkDetachedActor();
     }
 
-    if (RayConfig::instance().gcs_service_enabled() &&
-        RayConfig::instance().gcs_actor_service_enabled()) {
+    if (RayConfig::instance().gcs_actor_service_enabled()) {
       // Gcs server is responsible for notifying other nodes of the changes of actor
       // status, and thus raylet doesn't need to handle this anymore.
       // And if `new_scheduler_enabled_` is true, this function `FinishAssignedActorTask`
@@ -3198,9 +3266,8 @@ void NodeManager::ForwardTask(
         // the execution dependencies here since those cannot be transferred
         // between nodes.
         for (size_t i = 0; i < spec.NumArgs(); ++i) {
-          int count = spec.ArgIdCount(i);
-          for (int j = 0; j < count; j++) {
-            ObjectID argument_id = spec.ArgId(i, j);
+          if (spec.ArgByRef(i)) {
+            ObjectID argument_id = spec.ArgId(i);
             // If the argument is local, then push it to the receiving node.
             if (task_dependency_manager_.CheckObjectLocal(argument_id)) {
               object_manager_.Push(argument_id, node_id);
@@ -3408,6 +3475,7 @@ void NodeManager::HandlePinObjectIDs(const rpc::PinObjectIDsRequest &request,
     // an `AsyncGet` instead.
     if (!store_client_.Get(object_ids, /*timeout_ms=*/0, &plasma_results).ok()) {
       RAY_LOG(WARNING) << "Failed to get objects to be pinned from object store.";
+      // TODO(suquark): Maybe "Status::ObjectNotFound" is more accurate here.
       send_reply_callback(Status::Invalid("Failed to get objects."), nullptr, nullptr);
       return;
     }

@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RAY_COMMON_SCHEDULING_SCHEDULING_H
-#define RAY_COMMON_SCHEDULING_SCHEDULING_H
+#pragma once
 
 #include "absl/container/flat_hash_map.h"
 #include "absl/container/flat_hash_set.h"
@@ -139,7 +138,7 @@ class TaskRequest {
  public:
   /// List of predefined resources required by the task.
   std::vector<ResourceRequest> predefined_resources;
-  /// List of custom resources required by the tasl.
+  /// List of custom resources required by the task.
   std::vector<ResourceRequestWithId> custom_resources;
   /// List of placement hints. A placement hint is a node on which
   /// we desire to run this task. This is a soft constraint in that
@@ -536,5 +535,3 @@ class ClusterResourceScheduler {
   /// Return human-readable string for this scheduler state.
   std::string DebugString() const;
 };
-
-#endif  // RAY_COMMON_SCHEDULING_SCHEDULING_H

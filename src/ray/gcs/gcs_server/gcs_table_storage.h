@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RAY_GCS_GCS_TABLE_STORAGE_H_
-#define RAY_GCS_GCS_TABLE_STORAGE_H_
+#pragma once
 
 #include <utility>
 
@@ -40,7 +39,7 @@ using rpc::ResourceTableData;
 using rpc::TaskLeaseData;
 using rpc::TaskReconstructionData;
 using rpc::TaskTableData;
-using rpc::WorkerFailureData;
+using rpc::WorkerTableData;
 
 /// \class GcsTable
 ///
@@ -266,11 +265,11 @@ class GcsProfileTable : public GcsTable<UniqueID, ProfileTableData> {
   }
 };
 
-class GcsWorkerFailureTable : public GcsTable<WorkerID, WorkerFailureData> {
+class GcsWorkerTable : public GcsTable<WorkerID, WorkerTableData> {
  public:
-  explicit GcsWorkerFailureTable(std::shared_ptr<StoreClient> &store_client)
+  explicit GcsWorkerTable(std::shared_ptr<StoreClient> &store_client)
       : GcsTable(store_client) {
-    table_name_ = TablePrefix_Name(TablePrefix::WORKER_FAILURE);
+    table_name_ = TablePrefix_Name(TablePrefix::WORKERS);
   }
 };
 
@@ -350,9 +349,9 @@ class GcsTableStorage {
     return *profile_table_;
   }
 
-  GcsWorkerFailureTable &WorkerFailureTable() {
-    RAY_CHECK(worker_failure_table_ != nullptr);
-    return *worker_failure_table_;
+  GcsWorkerTable &WorkerTable() {
+    RAY_CHECK(worker_table_ != nullptr);
+    return *worker_table_;
   }
 
  protected:
@@ -371,7 +370,7 @@ class GcsTableStorage {
   std::unique_ptr<GcsHeartbeatBatchTable> heartbeat_batch_table_;
   std::unique_ptr<GcsErrorInfoTable> error_info_table_;
   std::unique_ptr<GcsProfileTable> profile_table_;
-  std::unique_ptr<GcsWorkerFailureTable> worker_failure_table_;
+  std::unique_ptr<GcsWorkerTable> worker_table_;
 };
 
 /// \class RedisGcsTableStorage
@@ -395,7 +394,7 @@ class RedisGcsTableStorage : public GcsTableStorage {
     heartbeat_batch_table_.reset(new GcsHeartbeatBatchTable(store_client_));
     error_info_table_.reset(new GcsErrorInfoTable(store_client_));
     profile_table_.reset(new GcsProfileTable(store_client_));
-    worker_failure_table_.reset(new GcsWorkerFailureTable(store_client_));
+    worker_table_.reset(new GcsWorkerTable(store_client_));
   }
 };
 
@@ -420,11 +419,9 @@ class InMemoryGcsTableStorage : public GcsTableStorage {
     heartbeat_batch_table_.reset(new GcsHeartbeatBatchTable(store_client_));
     error_info_table_.reset(new GcsErrorInfoTable(store_client_));
     profile_table_.reset(new GcsProfileTable(store_client_));
-    worker_failure_table_.reset(new GcsWorkerFailureTable(store_client_));
+    worker_table_.reset(new GcsWorkerTable(store_client_));
   }
 };
 
 }  // namespace gcs
 }  // namespace ray
-
-#endif  // RAY_GCS_GCS_TABLE_STORAGE_H_

@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RAY_GCS_ACTOR_MANAGER_H
-#define RAY_GCS_ACTOR_MANAGER_H
+#pragma once
 
 #include <ray/common/id.h>
 #include <ray/common/task/task_execution_spec.h>
@@ -223,6 +222,18 @@ class GcsActorManager : public rpc::ActorInfoHandler {
   /// \param done Callback that will be called when load is complete.
   void LoadInitialData(const EmptyCallback &done);
 
+  /// Delete non-detached actor information from durable storage once the associated job
+  /// finishes.
+  ///
+  /// \param job_id The id of finished job.
+  void OnJobFinished(const JobID &job_id);
+
+  /// Get the created actors.
+  ///
+  /// \return The created actors.
+  const absl::flat_hash_map<ClientID, absl::flat_hash_map<WorkerID, ActorID>>
+      &GetCreatedActors() const;
+
  private:
   /// A data structure representing an actor's owner.
   struct Owner {
@@ -289,5 +300,3 @@ class GcsActorManager : public rpc::ActorInfoHandler {
 
 }  // namespace gcs
 }  // namespace ray
-
-#endif  // RAY_GCS_ACTOR_MANAGER_H

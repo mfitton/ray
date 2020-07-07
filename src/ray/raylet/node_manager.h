@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RAY_RAYLET_NODE_MANAGER_H
-#define RAY_RAYLET_NODE_MANAGER_H
+#pragma once
 
 #include <boost/asio/steady_timer.hpp>
 
@@ -677,6 +676,11 @@ class NodeManager : public rpc::NodeManagerServiceHandler {
   /// The time that the last heartbeat was sent at. Used to make sure we are
   /// keeping up with heartbeats.
   uint64_t last_heartbeat_at_ms_;
+  /// Only the changed part will be included in heartbeat if this is true.
+  const bool light_heartbeat_enabled_;
+  /// Cache which stores resources in last heartbeat used to check if they are changed.
+  /// Used by light heartbeat.
+  SchedulingResources last_heartbeat_resources_;
   /// The time that the last debug string was logged to the console.
   uint64_t last_debug_dump_at_ms_;
   /// The time that we last sent a FreeObjects request to other nodes for
@@ -767,7 +771,7 @@ class NodeManager : public rpc::NodeManagerServiceHandler {
   void WaitForTaskArgsRequests(std::pair<ScheduleFn, Task> &work);
 
   // TODO(swang): Evict entries from these caches.
-  /// Cache for the WorkerFailureTable in the GCS.
+  /// Cache for the WorkerTable in the GCS.
   absl::flat_hash_set<WorkerID> failed_workers_cache_;
   /// Cache for the ClientTable in the GCS.
   absl::flat_hash_set<ClientID> failed_nodes_cache_;
@@ -789,5 +793,3 @@ class NodeManager : public rpc::NodeManagerServiceHandler {
 }  // namespace raylet
 
 }  // end namespace ray
-
-#endif  // RAY_RAYLET_NODE_MANAGER_H

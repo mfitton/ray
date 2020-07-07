@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RAY_RPC_GCS_RPC_SERVER_H
-#define RAY_RPC_GCS_RPC_SERVER_H
+#pragma once
 
 #include "ray/protobuf/gcs_service.grpc.pb.h"
 #include "ray/rpc/grpc_server.h"
@@ -64,6 +63,9 @@ class JobInfoGcsServiceHandler {
   virtual void HandleGetAllJobInfo(const GetAllJobInfoRequest &request,
                                    GetAllJobInfoReply *reply,
                                    SendReplyCallback send_reply_callback) = 0;
+
+  virtual void AddJobFinishedListener(
+      std::function<void(std::shared_ptr<JobID>)> listener) = 0;
 };
 
 /// The `GrpcService` for `JobInfoGcsService`.
@@ -425,9 +427,17 @@ class WorkerInfoGcsServiceHandler {
                                          ReportWorkerFailureReply *reply,
                                          SendReplyCallback send_reply_callback) = 0;
 
-  virtual void HandleRegisterWorker(const RegisterWorkerRequest &request,
-                                    RegisterWorkerReply *reply,
-                                    SendReplyCallback send_reply_callback) = 0;
+  virtual void HandleGetWorkerInfo(const GetWorkerInfoRequest &request,
+                                   GetWorkerInfoReply *reply,
+                                   SendReplyCallback send_reply_callback) = 0;
+
+  virtual void HandleGetAllWorkerInfo(const GetAllWorkerInfoRequest &request,
+                                      GetAllWorkerInfoReply *reply,
+                                      SendReplyCallback send_reply_callback) = 0;
+
+  virtual void HandleAddWorkerInfo(const AddWorkerInfoRequest &request,
+                                   AddWorkerInfoReply *reply,
+                                   SendReplyCallback send_reply_callback) = 0;
 };
 
 /// The `GrpcService` for `WorkerInfoGcsService`.
@@ -447,7 +457,9 @@ class WorkerInfoGrpcService : public GrpcService {
       const std::unique_ptr<grpc::ServerCompletionQueue> &cq,
       std::vector<std::unique_ptr<ServerCallFactory>> *server_call_factories) override {
     WORKER_INFO_SERVICE_RPC_HANDLER(ReportWorkerFailure);
-    WORKER_INFO_SERVICE_RPC_HANDLER(RegisterWorker);
+    WORKER_INFO_SERVICE_RPC_HANDLER(GetWorkerInfo);
+    WORKER_INFO_SERVICE_RPC_HANDLER(GetAllWorkerInfo);
+    WORKER_INFO_SERVICE_RPC_HANDLER(AddWorkerInfo);
   }
 
  private:
@@ -468,5 +480,3 @@ using WorkerInfoHandler = WorkerInfoGcsServiceHandler;
 
 }  // namespace rpc
 }  // namespace ray
-
-#endif  // RAY_RPC_GCS_RPC_SERVER_H

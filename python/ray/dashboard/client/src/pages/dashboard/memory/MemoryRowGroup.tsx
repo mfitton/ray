@@ -1,3 +1,4 @@
+<<<<<<< HEAD
 import {
   createStyles,
   TableRow,
@@ -41,7 +42,12 @@ type MemoryRowGroupProps = {
   initialExpanded: boolean;
 };
 
-const MemoryRowGroup: React.FC<MemoryRowGroupProps> = ({ groupKey, entries, summary, initialExpanded}) => {
+const MemoryRowGroup: React.FC<MemoryRowGroupProps> = ({
+  groupKey,
+  entries,
+  summary,
+  initialExpanded,
+}) => {
   const classes = useMemoryRowGroupStyles();
   const [expanded, setExpanded] = useState(initialExpanded);
   const toggleExpanded = () => setExpanded(!expanded);

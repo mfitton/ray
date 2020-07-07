@@ -12,8 +12,7 @@
 // See the License for the specific language governing permissions and
 // limitations under the License.
 
-#ifndef RAY_GCS_TEST_UTIL_H
-#define RAY_GCS_TEST_UTIL_H
+#pragma once
 
 #include <memory>
 #include <utility>
@@ -128,13 +127,11 @@ struct Mocker {
     return error_table_data;
   }
 
-  static std::shared_ptr<rpc::WorkerFailureData> GenWorkerFailureData() {
-    auto worker_failure_data = std::make_shared<rpc::WorkerFailureData>();
-    worker_failure_data->set_timestamp(std::time(nullptr));
-    return worker_failure_data;
+  static std::shared_ptr<rpc::WorkerTableData> GenWorkerTableData() {
+    auto worker_table_data = std::make_shared<rpc::WorkerTableData>();
+    worker_table_data->set_timestamp(std::time(nullptr));
+    return worker_table_data;
   }
 };
 
 }  // namespace ray
-
-#endif  // RAY_GCS_TEST_UTIL_H
