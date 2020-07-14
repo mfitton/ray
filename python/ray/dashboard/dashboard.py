@@ -690,17 +690,28 @@ class RayletStats(threading.Thread):
             try:
                 for node in self.nodes:
                     node_id = node["NodeID"]
+                    node_ip = node["NodeManagerAddress"]
                     stub = self.stubs[node_id]
-                    reply = stub.GetNodeStats(
-                        node_manager_pb2.GetNodeStatsRequest(
-                            include_memory_info=self.include_memory_info),
-                        timeout=2)
+                    try:
+                        reply = stub.GetNodeStats(
+                            node_manager_pb2.GetNodeStatsRequest(
+                                include_memory_info=self.include_memory_info),
+                            timeout=2)
+                    except grpc.RpcError as e:
+                        # This error can be raised because one or more of the
+                        # hosts we are attempting to fetch node stats from has
+                        # left the cluster.
+                        logger.warning('Failed to fetch node details for node with IP {}. This warning can happen because the node was removed from the cluster.'.format(node_ip))
+                        self._update_nodes()
+                        continue
+             
                     reply_dict = MessageToDict(reply)
                     reply_dict["nodeId"] = node_id
                     replies[node["NodeManagerAddress"]] = reply_dict
                 with self._raylet_stats_lock:
                     for address, reply_dict in replies.items():
                         self._raylet_stats[address] = reply_dict
+                
             except Exception:
                 logger.exception(traceback.format_exc())
             finally:
