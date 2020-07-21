@@ -1,9 +1,9 @@
 import React, { Fragment } from "react";
-import { ActorState, RayletInfoResponse } from "../../../api";
-import Actor from "./Actor";
+import { Actor, ActorState } from "../../../newApi";
+import Actor from "./ActorEntry";
 
 type ActorProps = {
-  actors: RayletInfoResponse["actors"];
+  actors: Actor[];
 };
 
 const Actors = (props: ActorProps) => {

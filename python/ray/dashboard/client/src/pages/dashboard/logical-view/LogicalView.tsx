@@ -6,14 +6,13 @@ import {
   Typography,
 } from "@material-ui/core";
 import React, { useState } from "react";
-import { connect } from "react-redux";
-import { ActorState, RayletActorInfo, RayletInfoResponse } from "../../../api";
-import { filterObj } from "../../../common/util";
+import { useSelector } from "react-redux";
+import { Actor, ActorState } from "../../../newApi";
 import { StoreState } from "../../../store";
-import Actors from "./Actors";
+import Actors from "./ActorEntries";
 
 const actorMatchesSearch = (
-  actor: RayletActorInfo,
+  actor: Actor,
   nameFilter: string,
 ): boolean => {
   // Performs a case insensitive search for the name filter string within the
@@ -26,7 +25,7 @@ const actorMatchesSearch = (
   return match !== undefined;
 };
 
-const getNestedActorTitles = (actor: RayletActorInfo): string[] => {
+const getNestedActorTitles = (actor: Actor): string[] => {
   const actorTitle = actor.actorTitle;
   const titles: string[] = actorTitle ? [actorTitle] : [];
   // state of -1 indicates an actor data record that does not have children.
@@ -43,32 +42,31 @@ const getNestedActorTitles = (actor: RayletActorInfo): string[] => {
   return titles.concat(childrenTitles);
 };
 
-const mapStateToProps = (state: StoreState) => ({
-  rayletInfo: state.dashboard.rayletInfo,
-});
-
-type LogicalViewProps = {
-  rayletInfo: RayletInfoResponse | null;
-} & ReturnType<typeof mapStateToProps>;
-
-const LogicalView: React.FC<LogicalViewProps> = ({ rayletInfo }) => {
-  const [nameFilter, setNameFilter] = useState("");
-
-  if (rayletInfo === null) {
-    return <Typography color="textSecondary">Loading...</Typography>;
-  }
-  let filteredActors = rayletInfo.actors;
-  if (nameFilter !== "") {
-    filteredActors = filterObj(
-      filteredActors,
-      ([_, actor]: [any, RayletActorInfo]) =>
-        actorMatchesSearch(actor, nameFilter),
+const actorsSelector = (state: StoreState) => {
+  const nodeSummaries = state.dashboard.nodeSummaries?.data;
+  if (nodeSummaries) {
+    return nodeSummaries.summaries.flatMap(nodeSummary =>
+      Object.values(nodeSummary.actors)
     );
   }
+  return null;
+};
+
+const LogicalView: React.FC<{}> = () => {
+  const [nameFilter, setNameFilter] = useState("");
+  const actors = useSelector(actorsSelector);
+
+  if (!actors) {
+    return <Typography color="textSecondary">Loading...</Typography>;
+  }
+  const filteredActors = actors.filter(
+      actor =>
+        actorMatchesSearch(actor, nameFilter)
+    );
 
   return (
     <div>
-      {Object.entries(rayletInfo.actors).length === 0 ? (
+      {filteredActors.length === 0 ? (
         <Typography color="textSecondary">No actors found.</Typography>
       ) : (
         <div>
@@ -91,4 +89,4 @@ const LogicalView: React.FC<LogicalViewProps> = ({ rayletInfo }) => {
   );
 };
 
-export default connect(mapStateToProps)(LogicalView);
+export default LogicalView;

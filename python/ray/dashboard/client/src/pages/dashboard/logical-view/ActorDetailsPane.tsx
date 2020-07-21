@@ -7,7 +7,7 @@ import {
   Tooltip,
 } from "@material-ui/core";
 import React from "react";
-import { ActorState, InvalidStateType } from "../../../api";
+import { ActorState } from "../../../newApi";
 
 type LabeledDatumProps = {
   label: string;
@@ -46,7 +46,6 @@ const LabeledDatum: React.FC<LabeledDatumProps> = ({
 
 type ActorStateReprProps = {
   state: ActorState;
-  ist?: InvalidStateType;
 };
 
 const actorStateReprStyles = makeStyles((theme: Theme) =>
@@ -100,7 +99,6 @@ const ActorStateRepr: React.FC<ActorStateReprProps> = ({ state, ist }) => {
 
 type ActorDetailsPaneProps = {
   actorTitle: string;
-  invalidStateType?: InvalidStateType;
   actorState: ActorState;
   actorDetails: {
     label: string;

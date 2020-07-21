@@ -18,7 +18,7 @@ import {
 } from "../../../api";
 import { sum } from "../../../common/util";
 import ActorDetailsPane from "./ActorDetailsPane";
-import Actors from "./Actors";
+import Actors from "./ActorEntries";
 
 const memoryDebuggingDocLink =
   "https://docs.ray.io/en/latest/memory-management.html#debugging-using-ray-memory";
