@@ -1,12 +1,12 @@
-import React, { Fragment } from "react";
+import React from "react";
 import { Actor, ActorState } from "../../../newApi";
-import Actor from "./ActorEntry";
+import ActorEntry from "./ActorEntry";
 
 type ActorProps = {
   actors: Actor[];
 };
 
-const Actors = (props: ActorProps) => {
+const ActorEntries = (props: ActorProps) => {
   const { actors } = props;
   const actorChildren = Object.values(actors)
     .sort((actor1, actor2) => {
@@ -21,8 +21,8 @@ const Actors = (props: ActorProps) => {
         return 1;
       }
     })
-    .map((actor) => <Actor actor={actor} key={actor.actorId} />);
-  return <Fragment>{actorChildren}</Fragment>;
+    .map((actor) => <ActorEntry actor={actor} key={actor.actorId} />);
+  return <>{actorChildren}</>;
 };
 
-export default Actors;
+export default ActorEntries;

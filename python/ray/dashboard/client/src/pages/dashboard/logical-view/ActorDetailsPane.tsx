@@ -48,7 +48,7 @@ type ActorStateReprProps = {
   state: ActorState;
 };
 
-const actorStateReprStyles = makeStyles((theme: Theme) =>
+const useActorStateReprStyles = makeStyles((theme: Theme) =>
   createStyles({
     infeasible: {
       color: theme.palette.error.light,
@@ -74,18 +74,15 @@ const actorStateReprStyles = makeStyles((theme: Theme) =>
   }),
 );
 
-const ActorStateRepr: React.FC<ActorStateReprProps> = ({ state, ist }) => {
-  const classes = actorStateReprStyles();
+const ActorStateRepr: React.FC<ActorStateReprProps> = ({ state }) => {
+  const classes = useActorStateReprStyles();
   const { Alive, Dead, Creating, Restarting, Invalid } = ActorState;
   switch (state) {
     case Invalid:
-      if (ist === "infeasibleActor") {
-        return <div className={classes.infeasible}>Infeasible</div>;
-      }
-      if (ist === "pendingActor") {
-        return <div className={classes.pending}>Pending Resources</div>;
-      }
-      return <div className={classes.unknown}>Unknown</div>;
+      // if (ist === "infeasibleActor") {
+      //   return <div className={classes.infeasible}>Infeasible</div>;
+      // }
+      return <div className={classes.pending}>Pending Resources</div>;
     case Creating:
       return <div className={classes.creating}>Creating</div>;
     case Alive:
@@ -127,14 +124,13 @@ const ActorDetailsPane: React.FC<ActorDetailsPaneProps> = ({
   actorTitle,
   actorDetails,
   actorState,
-  invalidStateType,
 }) => {
   const classes = useStyles();
   return (
     <React.Fragment>
       <div className={classes.actorTitleWrapper}>
         <div>{actorTitle}</div>
-        <ActorStateRepr ist={invalidStateType} state={actorState} />
+        <ActorStateRepr state={actorState} />
       </div>
       <Divider className={classes.divider} />
       <Grid container className={classes.detailsPane}>

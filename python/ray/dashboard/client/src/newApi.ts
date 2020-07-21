@@ -50,7 +50,15 @@ type RayletAddressInformation = {
   port: number;
   workerId: string;
 };
-type ActorState = "ALIVE" | string; // todo flesh out once ant provides other values
+
+export enum ActorState {
+  Pending = "PENDING",
+  Alive = "ALIVE",
+  Dead = "DEAD",
+  Creating = "CREATING",
+  Restarting = "RESTARTING",
+  Invalid = "INVALID",
+};
 
 type NodeSummary = BaseNodeInfo;
 
