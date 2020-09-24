@@ -5,6 +5,7 @@ type LabeledDatumProps = {
   label: ReactChild;
   datum: any;
   tooltip?: string;
+  outerGridSize?: 12 | 6 | 4 | 3; 
 };
 
 const useLabeledDatumStyles = makeStyles({
@@ -21,10 +22,11 @@ const LabeledDatum: React.FC<LabeledDatumProps> = ({
   label,
   datum,
   tooltip,
+  outerGridSize,
 }) => {
   const classes = useLabeledDatumStyles();
   const innerHtml = (
-    <Grid container item xs={6}>
+    <Grid container item xs={outerGridSize ?? 6}>
       <Grid item xs={6}>
         <Box className={tooltip && classes.tooltipLabel}>{label}</Box>
       </Grid>

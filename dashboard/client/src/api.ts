@@ -108,11 +108,26 @@ export type NodeDetails = {
 } & BaseNodeInfo;
 
 export type RayletData = {
-  // Merger of GCSNodeStats and GetNodeStatsReply
-  // GetNodeStatsReply fields.
-  // Note workers are in an array in NodeDetails
-  objectStoreUsedMemory: number;
+  // Object store information
   objectStoreAvailableMemory: number;
+  objectStoreNumLocalObjects: number;
+  objectManagerUnfulfilledPushRequests: number;
+  objectManagerWaitRequests: number;
+  objectManagerPullRequests: number;
+
+  // Scheduling information 
+  numSubscribedTasks: number;
+  numPendingTasks: number;
+  numPlaceableTasks: number;
+  numWaitingTasks: number;
+  numRunningTasks: number;
+  numInfeasibleTasks: number;
+  numRequiredTasks: number;
+  numRequiredObjects: number;
+  taskCountReceived: number;
+  liveActors: number;
+  restartingActors: number;
+  deadActors: number;
   numWorkers: number;
 
   // GCSNodeStats fields
