@@ -127,7 +127,22 @@ class DataOrganizer:
 
         extracted_views = _extract_view_data(
             node_stats["viewData"],
-            {"object_store_used_memory", "object_store_available_memory"})
+            {"object_store_used_memory",
+             "object_store_available_memory",
+             "object_store_num_local_objects",
+             "object_manager_unfulfilled_push_requests",
+             "object_manager_wait_requests",
+             "object_manager_pull_requests",
+             "num_subscribed_tasks",
+             "num_pending_tasks",
+             "num_running_tasks",
+             "num_infeasible_tasks",
+             "num_required_tasks",
+             "num_required_objects",
+             "task_count_received",
+             "live_actors",
+             "dead_actors",
+             "num_workers"})
 
         node_info = node_physical_stats
         # Merge node stats to node physical stats under raylet
