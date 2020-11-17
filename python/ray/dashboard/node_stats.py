@@ -159,6 +159,8 @@ class NodeStats(threading.Thread):
                 actors[actor_id].update(self._addr_to_extra_info_dict[addr])
 
             for node_id, workers_info in workers_info_by_node.items():
+                if not workers_info:
+                    continue
                 for core_worker_stats in workers_info:
                     addr = (core_worker_stats["ipAddress"],
                             str(core_worker_stats["port"]))
