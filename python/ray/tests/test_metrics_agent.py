@@ -164,6 +164,10 @@ def test_metrics_export_end_to_end(_setup_cluster_for_test):
         ][0]
         assert test_counter_sample.value == 1.0
 
+        executed_tasks_samples = [m for m in metric_samples if "ray_num_executed_tasks_total" in m.name]
+        executed_A_init_tasks_samples = [m for m in executed_tasks_samples if m.labels["TaskType"] == "A.__init__()"]
+        assert len(executed_A_init_tasks_samples) == 1
+
         # Make sure the numeric value is correct
         test_histogram_samples = [
             m for m in metric_samples if "test_histogram" in m.name
