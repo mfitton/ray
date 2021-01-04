@@ -1806,7 +1806,7 @@ Status CoreWorker::ExecuteTask(const TaskSpecification &task_spec,
       task_type, task_spec.GetName(), func,
       task_spec.GetRequiredResources().GetResourceMap(), args, arg_reference_ids,
       return_ids, task_spec.GetDebuggerBreakpoint(), return_objects);
-
+  stats::NumExecutedTasks.Record(1, {{stats::TaskTypeKey, task_spec.GetName()}});
   absl::optional<rpc::Address> caller_address(
       options_.is_local_mode ? absl::optional<rpc::Address>()
                              : worker_context_.GetCurrentTask()->CallerAddress());

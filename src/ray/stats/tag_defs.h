@@ -39,3 +39,5 @@ static const TagKeyType DriverPidKey = TagKeyType::Register("DriverPid");
 static const TagKeyType ResourceNameKey = TagKeyType::Register("ResourceName");
 
 static const TagKeyType ActorIdKey = TagKeyType::Register("ActorId");
+
+static const TagKeyType TaskTypeKey = TagKeyType::Register("TaskType");

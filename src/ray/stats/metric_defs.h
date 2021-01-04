@@ -117,3 +117,13 @@ static Gauge PendingPlacementGroups(
 static Histogram OutboundHeartbeatSizeKB("outbound_heartbeat_size_kb",
                                          "Outbound heartbeat payload size", "kb",
                                          {10, 50, 100, 1000, 10000, 100000});
+
+
+///
+/// Aggregate Task Metrics
+///
+static Count NumExecutedTasks(
+    "num_executed_tasks",
+    "Number of tasks executed of a given task type",
+    "tasks",
+    {TaskTypeKey});
