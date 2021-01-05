@@ -1752,6 +1752,8 @@ Status CoreWorker::ExecuteTask(const TaskSpecification &task_spec,
                                std::vector<std::shared_ptr<RayObject>> *return_objects,
                                ReferenceCounter::ReferenceTableProto *borrowed_refs) {
   RAY_LOG(DEBUG) << "Executing task, task info = " << task_spec.DebugString();
+  uint64_t task_start_t = current_time_ms();
+  std::string worker_id = to_string(GetWorkerID());
   task_queue_length_ -= 1;
   num_executed_tasks_ += 1;
 
@@ -1806,7 +1808,6 @@ Status CoreWorker::ExecuteTask(const TaskSpecification &task_spec,
       task_type, task_spec.GetName(), func,
       task_spec.GetRequiredResources().GetResourceMap(), args, arg_reference_ids,
       return_ids, task_spec.GetDebuggerBreakpoint(), return_objects);
-  stats::NumExecutedTasks.Record(1, {{stats::TaskTypeKey, task_spec.GetName()}});
   absl::optional<rpc::Address> caller_address(
       options_.is_local_mode ? absl::optional<rpc::Address>()
                              : worker_context_.GetCurrentTask()->CallerAddress());
@@ -1864,6 +1865,12 @@ Status CoreWorker::ExecuteTask(const TaskSpecification &task_spec,
     }
   }
   RAY_LOG(DEBUG) << "Finished executing task " << task_spec.TaskId();
+  std::vector<std::pair<opencensus::tags::TagKey, std::string>> tags;
+  tags.emplace_back(stats::TaskTypeKey, task_spec.GetName());
+  tags.emplace_back(stats::WorkerIdKey, worker_id);
+  uint64_t task_end_t = current_time_ms();
+  stats::NumExecutedTasks.Record(1, tags);
+  stats::TaskExecutionTime.Record(task_end_t - task_start_t, tags);
 
   if (status.IsSystemExit()) {
     Exit(status.IsIntentionalSystemExit());

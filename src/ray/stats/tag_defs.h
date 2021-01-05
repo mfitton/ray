@@ -41,3 +41,5 @@ static const TagKeyType ResourceNameKey = TagKeyType::Register("ResourceName");
 static const TagKeyType ActorIdKey = TagKeyType::Register("ActorId");
 
 static const TagKeyType TaskTypeKey = TagKeyType::Register("TaskType");
+
+static const TagKeyType WorkerIdKey = TagKeyType::Register("WorkerId");
