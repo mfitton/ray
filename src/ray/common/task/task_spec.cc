@@ -244,6 +244,10 @@ TaskID TaskSpecification::CallerId() const {
   return TaskID::FromBinary(message_->caller_id());
 }
 
+int64_t TaskSpecification::GetSubmissionTimestamp() const {
+  return message_->submission_timestamp();
+}
+
 const rpc::Address &TaskSpecification::CallerAddress() const {
   return message_->caller_address();
 }

@@ -165,6 +165,8 @@ class TaskSpecification : public MessageWrapper<rpc::TaskSpec> {
 
   TaskID CallerId() const;
 
+  int64_t GetSubmissionTimestamp() const;
+
   const rpc::Address &CallerAddress() const;
 
   WorkerID CallerWorkerId() const;

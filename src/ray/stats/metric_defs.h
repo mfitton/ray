@@ -134,3 +134,18 @@ static Histogram TaskExecutionTime(
     {1, 5, 25, 100, 1000, 10000, 100000, 1000000},
     {TaskTypeKey, WorkerIdKey}
 );
+
+static Gauge NumExecutingTasks(
+    "num_executing_tasks",
+    "Number of tasks currently executing",
+    "tasks",
+    {TaskTypeKey, WorkerIdKey}
+);
+
+static Histogram TaskQueueTime(
+    "task_queue_time_ms",
+    "Time between task being submitted to local worker and beginning execution on a worker",
+    "ms",
+    {1, 5, 25, 100, 1000, 10000, 100000, 1000000},
+    {TaskTypeKey, WorkerIdKey}
+);

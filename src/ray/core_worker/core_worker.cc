@@ -40,13 +40,14 @@ void BuildCommonTaskSpec(
     const std::unordered_map<std::string, double> &required_placement_resources,
     std::vector<ObjectID> *return_ids, const ray::BundleID &bundle_id,
     bool placement_group_capture_child_tasks, const std::string debugger_breakpoint,
+    const int64_t submission_timestamp,
     const std::unordered_map<std::string, std::string> &override_environment_variables) {
   // Build common task spec.
   builder.SetCommonTaskSpec(
       task_id, name, function.GetLanguage(), function.GetFunctionDescriptor(), job_id,
       current_task_id, task_index, caller_id, address, num_returns, required_resources,
       required_placement_resources, bundle_id, placement_group_capture_child_tasks,
-      debugger_breakpoint, override_environment_variables);
+      debugger_breakpoint, submission_timestamp, override_environment_variables);
   // Set task arguments.
   for (const auto &arg : args) {
     builder.AddArg(*arg);
@@ -155,7 +156,8 @@ CoreWorkerProcess::CoreWorkerProcess(const CoreWorkerOptions &options)
   RAY_LOG(DEBUG) << "Stats setup in core worker.";
   // Initialize stats in core worker global tags.
   const ray::stats::TagsType global_tags = {{ray::stats::ComponentKey, "core_worker"},
-                                            {ray::stats::VersionKey, "1.2.0.dev0"}};
+                                            {ray::stats::VersionKey, "1.2.0.dev0"},
+                                            {ray::stats::NodeAddressKey, options_.node_ip_address}};
 
   // NOTE(lingxuan.zlx): We assume RayConfig is initialized before it's used.
   // RayConfig is generated in Java_io_ray_runtime_RayNativeRuntime_nativeInitialize
@@ -1296,6 +1298,7 @@ void CoreWorker::SubmitTask(const RayFunction &function,
                             bool placement_group_capture_child_tasks,
                             const std::string &debugger_breakpoint) {
   TaskSpecBuilder builder;
+  const int64_t submission_time = current_time_ms();
   const int next_task_index = worker_context_.GetNextTaskIndex();
   const auto task_id =
       TaskID::ForNormalTask(worker_context_.GetCurrentJobID(),
@@ -1320,7 +1323,7 @@ void CoreWorker::SubmitTask(const RayFunction &function,
                       rpc_address_, function, args, task_options.num_returns,
                       constrained_resources, required_resources, return_ids,
                       placement_options, placement_group_capture_child_tasks,
-                      debugger_breakpoint, override_environment_variables);
+                      debugger_breakpoint, submission_time, override_environment_variables);
   TaskSpecification task_spec = builder.Build();
   if (options_.is_local_mode) {
     ExecuteTaskLocalMode(task_spec);
@@ -1377,6 +1380,7 @@ Status CoreWorker::CreateActor(const RayFunction &function,
                       actor_creation_options.placement_options,
                       actor_creation_options.placement_group_capture_child_tasks,
                       "", /* debugger_breakpoint */
+                      current_time_ms(),
                       override_environment_variables);
   builder.SetActorCreationTaskSpec(actor_id, actor_creation_options.max_restarts,
                                    actor_creation_options.max_task_retries,
@@ -1507,6 +1511,7 @@ void CoreWorker::SubmitActorTask(const ActorID &actor_id, const RayFunction &fun
                       std::make_pair(PlacementGroupID::Nil(), -1),
                       true, /* placement_group_capture_child_tasks */
                       "",   /* debugger_breakpoint */
+                      current_time_ms(),
                       override_environment_variables);
   // NOTE: placement_group_capture_child_tasks and override_environment_variables will be
   // ignored in the actor because we should always follow the actor's option.
@@ -1753,9 +1758,12 @@ Status CoreWorker::ExecuteTask(const TaskSpecification &task_spec,
                                ReferenceCounter::ReferenceTableProto *borrowed_refs) {
   RAY_LOG(DEBUG) << "Executing task, task info = " << task_spec.DebugString();
   uint64_t task_start_t = current_time_ms();
-  std::string worker_id = to_string(GetWorkerID());
   task_queue_length_ -= 1;
   num_executed_tasks_ += 1;
+  std::string worker_id = GetWorkerID().Hex();
+
+  const ray::stats::TagsType metric_tags = {{ray::stats::TaskTypeKey, task_spec.GetName()}, {ray::stats::WorkerIdKey, worker_id}};
+  stats::TaskQueueTime.Record(task_start_t - task_spec.GetSubmissionTimestamp(), metric_tags);
 
   if (!options_.is_local_mode) {
     worker_context_.SetCurrentTask(task_spec);
@@ -1865,17 +1873,13 @@ Status CoreWorker::ExecuteTask(const TaskSpecification &task_spec,
     }
   }
   RAY_LOG(DEBUG) << "Finished executing task " << task_spec.TaskId();
-  std::vector<std::pair<opencensus::tags::TagKey, std::string>> tags;
-  tags.emplace_back(stats::TaskTypeKey, task_spec.GetName());
-  tags.emplace_back(stats::WorkerIdKey, worker_id);
+  
   uint64_t task_end_t = current_time_ms();
-  stats::NumExecutedTasks.Record(1, tags);
-  stats::TaskExecutionTime.Record(task_end_t - task_start_t, tags);
-
+  stats::NumExecutedTasks.Record(1, metric_tags);
+  stats::TaskExecutionTime.Record(task_end_t - task_start_t, metric_tags); 
   if (status.IsSystemExit()) {
     Exit(status.IsIntentionalSystemExit());
   }
-
   return status;
 }
 
